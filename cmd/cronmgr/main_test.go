@@ -2,6 +2,7 @@ package main
 
 import (
 	"testing"
+	"time"
 
 	"github.com/spf13/pflag"
 )
@@ -216,6 +217,45 @@ func TestExtractCommandAfterSeparator(t *testing.T) {
 						t.Errorf("extractCommandAfterSeparator() args[%d] = %v, want %v", i, arg, tt.wantArgs[i])
 					}
 				}
+			}
+		})
+	}
+}
+
+// TestFormatRunEvent tests the logfmt line written for each finished run
+func TestFormatRunEvent(t *testing.T) {
+	start := time.Date(2026, 10, 24, 3, 0, 1, 0, time.UTC)
+	tests := []struct {
+		name     string
+		jobName  string
+		exitCode int
+		want     string
+	}{
+		{
+			name:     "success",
+			jobName:  "daily_backup",
+			exitCode: 0,
+			want:     "name=daily_backup user=ubuntu result=success exit_code=0 duration_seconds=12.35 started=2026-10-24T03:00:01Z",
+		},
+		{
+			name:     "failure keeps the exit code",
+			jobName:  "daily_backup",
+			exitCode: 3,
+			want:     "name=daily_backup user=ubuntu result=failed exit_code=3 duration_seconds=12.35 started=2026-10-24T03:00:01Z",
+		},
+		{
+			name:     "job name needing quotes",
+			jobName:  `my "job" a=b`,
+			exitCode: 0,
+			want:     `name="my \"job\" a=b" user=ubuntu result=success exit_code=0 duration_seconds=12.35 started=2026-10-24T03:00:01Z`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatRunEvent(tt.jobName, "ubuntu", start, 12.345, tt.exitCode)
+			if got != tt.want {
+				t.Errorf("formatRunEvent() = %q, want %q", got, tt.want)
 			}
 		})
 	}

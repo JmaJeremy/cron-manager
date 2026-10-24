@@ -1051,6 +1051,202 @@
       "title": "Success Rate Over Time (rolling 24h)",
       "type": "timeseries",
       "description": "Share of completed runs (success or failed) that succeeded in the trailing 24 hours. Gaps mean the job had no completed runs in that window."
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "${loki_datasource}"
+      },
+      "description": "One row per finished run, newest first, from the line cronmgr writes to syslog when a run ends ({syslog_identifier=\"cronmgr\"} in Loki). Finished is when that line was logged; Started and Duration are the run's own. Kept as long as Loki's retention; runs still in progress are not listed.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duration"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Result"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "success": {
+                        "color": "green",
+                        "index": 0,
+                        "text": "✅ success"
+                      },
+                      "failed": {
+                        "color": "red",
+                        "index": 1,
+                        "text": "❌ failed"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Finished"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "id": 10,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": true,
+          "fields": "",
+          "reducer": [
+            "count"
+          ],
+          "show": true
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Finished"
+          }
+        ]
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki_datasource}"
+          },
+          "expr": "{syslog_identifier=\"cronmgr\", host=~\"$instance\"} | logfmt | name=~\"$job\"",
+          "queryType": "range",
+          "maxLines": 5000,
+          "refId": "A"
+        }
+      ],
+      "title": "📜 Run Log",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "labels",
+            "format": "auto",
+            "replace": false,
+            "keepTime": false
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "targetField": "duration_seconds",
+                "destinationType": "number"
+              },
+              {
+                "targetField": "exit_code",
+                "destinationType": "number"
+              }
+            ],
+            "fields": {}
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "labels": true,
+              "Line": true,
+              "tsNs": true,
+              "id": true,
+              "detected_level": true,
+              "job": true,
+              "service_name": true,
+              "syslog_identifier": true,
+              "unit": true,
+              "labelTypes": true
+            },
+            "indexByName": {
+              "Time": 0,
+              "name": 1,
+              "user": 2,
+              "result": 3,
+              "duration_seconds": 4,
+              "exit_code": 5,
+              "started": 6,
+              "host": 7
+            },
+            "renameByName": {
+              "Time": "Finished",
+              "name": "Job",
+              "user": "User",
+              "result": "Result",
+              "duration_seconds": "Duration",
+              "exit_code": "Exit code",
+              "started": "Started",
+              "host": "Host"
+            }
+          }
+        }
+      ],
+      "type": "table"
     }
   ],
   "refresh": "10s",
@@ -1075,6 +1271,21 @@
         "name": "datasource",
         "options": [],
         "query": "prometheus",
+        "queryValue": "",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "label": "Logs datasource",
+        "multi": false,
+        "name": "loki_datasource",
+        "options": [],
+        "query": "loki",
         "queryValue": "",
         "refresh": 1,
         "regex": "",

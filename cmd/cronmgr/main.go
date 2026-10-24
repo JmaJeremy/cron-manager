@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"log/syslog"
 	"os"
 	"os/exec"
+	"os/user"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -50,6 +53,41 @@ func extractCommandAfterSeparator(args []string) (command string, arguments []st
 	command = commandArgs[0]
 	arguments = commandArgs[1:]
 	return command, arguments, nil
+}
+
+// logfmtValue quotes a logfmt value when it would otherwise be ambiguous.
+func logfmtValue(v string) string {
+	if v == "" || strings.ContainsAny(v, " \t\"=\\") {
+		return strconv.Quote(v)
+	}
+	return v
+}
+
+// formatRunEvent renders one finished run as a logfmt line.
+func formatRunEvent(jobName, userName string, start time.Time, duration float64, exitCode int) string {
+	result := "success"
+	if exitCode != 0 {
+		result = "failed"
+	}
+	return fmt.Sprintf("name=%s user=%s result=%s exit_code=%d duration_seconds=%s started=%s",
+		logfmtValue(jobName), logfmtValue(userName), result, exitCode,
+		strconv.FormatFloat(duration, 'f', 2, 64), start.UTC().Format(time.RFC3339))
+}
+
+// logRunEvent sends one line per finished run to syslog (the journal on systemd hosts),
+// so each run is kept as an event and not only as the latest metric values. Best effort:
+// without a syslog socket the run is still recorded in the metrics.
+func logRunEvent(jobName string, start time.Time, duration float64, exitCode int) {
+	userName := strconv.Itoa(os.Getuid())
+	if u, err := user.Current(); err == nil {
+		userName = u.Username
+	}
+	w, err := syslog.New(syslog.LOG_INFO|syslog.LOG_CRON, "cronmgr")
+	if err != nil {
+		return
+	}
+	defer func() { _ = w.Close() }()
+	_ = w.Info(formatRunEvent(jobName, userName, start, duration, exitCode))
 }
 
 func main() {
@@ -216,10 +254,11 @@ For more information, visit: https://github.com/alswl/cron-manager
 	// Calculate final duration
 	finalDuration := time.Since(jobStartTime).Seconds()
 
+	exitCode := 0
 	if err != nil {
 		if exiterr, ok := err.(*exec.ExitError); ok {
 			if waitStatus, ok := exiterr.Sys().(syscall.WaitStatus); ok {
-				exitCode := waitStatus.ExitStatus()
+				exitCode = waitStatus.ExitStatus()
 				// Job failed
 				exp.WriteGauge("failed", *jobnamePtr, "1", "Whether the job failed (1 = failed, 0 = success)")
 				exp.WriteGauge("exit_code", *jobnamePtr, strconv.Itoa(exitCode), "Exit code of the last job execution")
@@ -242,4 +281,6 @@ For more information, visit: https://github.com/alswl/cron-manager
 	// Store final duration and last timestamp
 	exp.WriteGauge("duration_seconds", *jobnamePtr, strconv.FormatFloat(finalDuration, 'f', 2, 64), "Duration of the last job execution in seconds")
 	exp.WriteGauge("last_run_timestamp_seconds", *jobnamePtr, fmt.Sprintf("%d", time.Now().Unix()), "Timestamp of the last job execution")
+
+	logRunEvent(*jobnamePtr, jobStartTime, finalDuration, exitCode)
 }

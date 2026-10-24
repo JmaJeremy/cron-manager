@@ -147,6 +147,19 @@ crontab_exit_code{name="daily_backup"} 0
 crontab_duration_seconds{name="daily_backup"} 125.45
 ```
 
+### Run Events
+
+The metrics hold the latest run only. To keep every run, cronmgr also writes one
+logfmt line per finished run to syslog (tag `cronmgr`, facility `cron`), which
+lands in the journal on systemd hosts and can be shipped to Loki:
+
+```
+name=daily_backup user=ubuntu result=success exit_code=0 duration_seconds=125.45 started=2026-10-24T03:00:01Z
+```
+
+Query it in Loki with `{syslog_identifier="cronmgr"} | logfmt`. Without a syslog
+socket (e.g. in a container) the line is skipped and the metrics are unaffected.
+
 ### Useful Queries
 
 ```promql
