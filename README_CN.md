@@ -108,7 +108,7 @@ cronmgr -n "test" --no-metric -- /usr/bin/test.sh
 | 选项 | 说明 | 默认值 |
 |------|------|--------|
 | `-n, --name` | 任务名称（必需） | - |
-| `-l, --log` | 日志文件路径 | 丢弃输出 |
+| `-l, --log` | 日志文件路径 | 透传到 stdout/stderr |
 | `-i, --idle` | 最小运行时长（秒） | 0 |
 | `-d, --dir` | 指标目录 | `/var/lib/prometheus/node-exporter` |
 | `--textfile` | 指标文件名 | `crons.prom` |

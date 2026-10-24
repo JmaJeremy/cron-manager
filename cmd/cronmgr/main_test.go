@@ -235,27 +235,49 @@ func TestFormatRunEvent(t *testing.T) {
 			name:     "success",
 			jobName:  "daily_backup",
 			exitCode: 0,
-			want:     "name=daily_backup user=ubuntu result=success exit_code=0 duration_seconds=12.35 started=2026-10-24T03:00:01Z",
+			want:     "name=daily_backup run_id=a1b2c3d4e5f6 user=ubuntu result=success exit_code=0 duration_seconds=12.35 started=2026-10-24T03:00:01Z",
 		},
 		{
 			name:     "failure keeps the exit code",
 			jobName:  "daily_backup",
 			exitCode: 3,
-			want:     "name=daily_backup user=ubuntu result=failed exit_code=3 duration_seconds=12.35 started=2026-10-24T03:00:01Z",
+			want:     "name=daily_backup run_id=a1b2c3d4e5f6 user=ubuntu result=failed exit_code=3 duration_seconds=12.35 started=2026-10-24T03:00:01Z",
 		},
 		{
 			name:     "job name needing quotes",
 			jobName:  `my "job" a=b`,
 			exitCode: 0,
-			want:     `name="my \"job\" a=b" user=ubuntu result=success exit_code=0 duration_seconds=12.35 started=2026-10-24T03:00:01Z`,
+			want:     `name="my \"job\" a=b" run_id=a1b2c3d4e5f6 user=ubuntu result=success exit_code=0 duration_seconds=12.35 started=2026-10-24T03:00:01Z`,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := formatRunEvent(tt.jobName, "ubuntu", start, 12.345, tt.exitCode)
+			got := formatRunEvent("a1b2c3d4e5f6", tt.jobName, "ubuntu", start, 12.345, tt.exitCode)
 			if got != tt.want {
 				t.Errorf("formatRunEvent() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestFormatOutputLine tests the logfmt line written for each line of job output
+func TestFormatOutputLine(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+		want string
+	}{
+		{"plain word", "done", "run_id=a1b2c3d4e5f6 name=daily_backup stream=stdout out=done"},
+		{"spaces and quotes", `copied "a" to b`, `run_id=a1b2c3d4e5f6 name=daily_backup stream=stdout out="copied \"a\" to b"`},
+		{"empty line", "", `run_id=a1b2c3d4e5f6 name=daily_backup stream=stdout out=""`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatOutputLine("a1b2c3d4e5f6", "daily_backup", "stdout", tt.line)
+			if got != tt.want {
+				t.Errorf("formatOutputLine() = %q, want %q", got, tt.want)
 			}
 		})
 	}

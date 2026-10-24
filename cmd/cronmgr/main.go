@@ -1,8 +1,10 @@
 package main
 
 import (
-	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"log"
 	"log/syslog"
 	"os"
@@ -16,6 +18,7 @@ import (
 	"github.com/alswl/cron-manager/internal/exporter"
 	"github.com/alswl/cron-manager/internal/job"
 	"github.com/alswl/cron-manager/internal/logwriter"
+	"github.com/alswl/cron-manager/internal/runlog"
 	"github.com/alswl/cron-manager/internal/version"
 	"github.com/spf13/pflag"
 )
@@ -63,21 +66,42 @@ func logfmtValue(v string) string {
 	return v
 }
 
+// newRunID returns a short random ID that ties a run's event to its output lines.
+func newRunID() string {
+	b := make([]byte, 6)
+	if _, err := rand.Read(b); err != nil {
+		return strconv.FormatInt(time.Now().UnixNano(), 36)
+	}
+	return hex.EncodeToString(b)
+}
+
 // formatRunEvent renders one finished run as a logfmt line.
-func formatRunEvent(jobName, userName string, start time.Time, duration float64, exitCode int) string {
+func formatRunEvent(runID, jobName, userName string, start time.Time, duration float64, exitCode int) string {
 	result := "success"
 	if exitCode != 0 {
 		result = "failed"
 	}
-	return fmt.Sprintf("name=%s user=%s result=%s exit_code=%d duration_seconds=%s started=%s",
-		logfmtValue(jobName), logfmtValue(userName), result, exitCode,
+	return fmt.Sprintf("name=%s run_id=%s user=%s result=%s exit_code=%d duration_seconds=%s started=%s",
+		logfmtValue(jobName), runID, logfmtValue(userName), result, exitCode,
 		strconv.FormatFloat(duration, 'f', 2, 64), start.UTC().Format(time.RFC3339))
+}
+
+// formatOutputLine renders one line of a job's output as a logfmt line.
+func formatOutputLine(runID, jobName, stream, line string) string {
+	return fmt.Sprintf("run_id=%s name=%s stream=%s out=%s", runID, logfmtValue(jobName), stream, logfmtValue(line))
+}
+
+// sameDestination reports whether two files are the same open file, pipe or terminal.
+func sameDestination(a, b *os.File) bool {
+	fa, errA := a.Stat()
+	fb, errB := b.Stat()
+	return errA == nil && errB == nil && os.SameFile(fa, fb)
 }
 
 // logRunEvent sends one line per finished run to syslog (the journal on systemd hosts),
 // so each run is kept as an event and not only as the latest metric values. Best effort:
 // without a syslog socket the run is still recorded in the metrics.
-func logRunEvent(jobName string, start time.Time, duration float64, exitCode int) {
+func logRunEvent(runID, jobName string, start time.Time, duration float64, exitCode int) {
 	userName := strconv.Itoa(os.Getuid())
 	if u, err := user.Current(); err == nil {
 		userName = u.Username
@@ -87,7 +111,7 @@ func logRunEvent(jobName string, start time.Time, duration float64, exitCode int
 		return
 	}
 	defer func() { _ = w.Close() }()
-	_ = w.Info(formatRunEvent(jobName, userName, start, duration, exitCode))
+	_ = w.Info(formatRunEvent(runID, jobName, userName, start, duration, exitCode))
 }
 
 func main() {
@@ -204,8 +228,9 @@ For more information, visit: https://github.com/alswl/cron-manager
 	// Execute the command with arguments
 	cmd := exec.Command(cmdBin, cmdArgsOnly...)
 
-	var buf bytes.Buffer
+	runID := newRunID()
 	var logWriter *logwriter.LogWriter
+	var outputLines []*runlog.LineWriter
 
 	// Setup log writer if log file is specified
 	if *logfilePtr != "" {
@@ -219,8 +244,31 @@ For more information, visit: https://github.com/alswl/cron-manager
 			log.Fatalf("Failed to setup pipes: %v", err)
 		}
 	} else {
-		cmd.Stdout = &buf
-		cmd.Stderr = &buf
+		// Pass output through, so a redirect on the cronmgr command line (e.g.
+		// ">> job.log 2>&1" in a crontab) still captures it, and copy each line to
+		// syslog tagged with the run ID, so a run's output can be found from its event.
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if sw, err := syslog.New(syslog.LOG_INFO|syslog.LOG_CRON, "cronmgr-output"); err == nil {
+			defer func() { _ = sw.Close() }()
+			lineWriter := func(stream string) *runlog.LineWriter {
+				lw := runlog.NewLineWriter(func(line string) {
+					_ = sw.Info(formatOutputLine(runID, *jobnamePtr, stream, line))
+				})
+				outputLines = append(outputLines, lw)
+				return lw
+			}
+			if sameDestination(os.Stdout, os.Stderr) {
+				// One pipe for both, as with "2>&1": separate pipes would let stdout
+				// and stderr lines change order relative to each other.
+				combined := io.MultiWriter(os.Stdout, lineWriter("combined"))
+				cmd.Stdout = combined
+				cmd.Stderr = combined
+			} else {
+				cmd.Stdout = io.MultiWriter(os.Stdout, lineWriter("stdout"))
+				cmd.Stderr = io.MultiWriter(os.Stderr, lineWriter("stderr"))
+			}
+		}
 	}
 
 	// Start the command
@@ -245,6 +293,9 @@ For more information, visit: https://github.com/alswl/cron-manager
 
 	// Wait for the command to complete and get its exit status
 	err = cmd.Wait()
+	for _, lw := range outputLines {
+		lw.Flush()
+	}
 
 	// wait if idle is active
 	if *idleSeconds > 0 {
@@ -282,5 +333,5 @@ For more information, visit: https://github.com/alswl/cron-manager
 	exp.WriteGauge("duration_seconds", *jobnamePtr, strconv.FormatFloat(finalDuration, 'f', 2, 64), "Duration of the last job execution in seconds")
 	exp.WriteGauge("last_run_timestamp_seconds", *jobnamePtr, fmt.Sprintf("%d", time.Now().Unix()), "Timestamp of the last job execution")
 
-	logRunEvent(*jobnamePtr, jobStartTime, finalDuration, exitCode)
+	logRunEvent(runID, *jobnamePtr, jobStartTime, finalDuration, exitCode)
 }

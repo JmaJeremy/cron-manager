@@ -108,7 +108,7 @@ cronmgr -n "test" --no-metric -- /usr/bin/test.sh
 | Option | Description | Default |
 |--------|-------------|---------|
 | `-n, --name` | Job name (required) | - |
-| `-l, --log` | Log file path | discard output |
+| `-l, --log` | Log file path | pass through to stdout/stderr |
 | `-i, --idle` | Minimum run duration (seconds) | 0 |
 | `-d, --dir` | Metrics directory | `/var/lib/prometheus/node-exporter` |
 | `--textfile` | Metrics filename | `crons.prom` |
@@ -154,11 +154,24 @@ logfmt line per finished run to syslog (tag `cronmgr`, facility `cron`), which
 lands in the journal on systemd hosts and can be shipped to Loki:
 
 ```
-name=daily_backup user=ubuntu result=success exit_code=0 duration_seconds=125.45 started=2026-10-24T03:00:01Z
+name=daily_backup run_id=a1b2c3d4e5f6 user=ubuntu result=success exit_code=0 duration_seconds=125.45 started=2026-10-24T03:00:01Z
 ```
 
-Query it in Loki with `{syslog_identifier="cronmgr"} | logfmt`. Without a syslog
-socket (e.g. in a container) the line is skipped and the metrics are unaffected.
+Without `--log`, the job's output is passed through to cronmgr's own stdout and
+stderr, and each line is also sent to syslog (tag `cronmgr-output`) with the same
+`run_id`. Put the redirect outside the command so cronmgr sees the output:
+
+```bash
+# output still appended to backup.log, and kept per run in the journal
+cronmgr -n daily_backup -- /bin/sh -c 'cd /srv && ./backup.sh' >> /var/log/backup.log 2>&1
+```
+
+When stdout and stderr go to the same place, as with `2>&1`, the job gets a
+single pipe so their lines keep their order (`stream=combined`). Query a run's
+events with `{syslog_identifier="cronmgr"} | logfmt`, and its output with
+`{syslog_identifier="cronmgr-output"} |= "run_id=<id> " | logfmt | line_format "{{.out}}"`.
+Without a syslog socket (e.g. in a container) these lines are skipped; the job
+and its metrics are unaffected.
 
 ### Useful Queries
 

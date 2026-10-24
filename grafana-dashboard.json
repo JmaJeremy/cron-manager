@@ -1057,7 +1057,7 @@
         "type": "loki",
         "uid": "${loki_datasource}"
       },
-      "description": "One row per finished run, newest first, from the line cronmgr writes to syslog when a run ends ({syslog_identifier=\"cronmgr\"} in Loki). Finished is when that line was logged; Started and Duration are the run's own. Kept as long as Loki's retention; runs still in progress are not listed.",
+      "description": "One row per finished run, newest first, from the line cronmgr writes to syslog when a run ends ({syslog_identifier=\"cronmgr\"} in Loki). Finished is when that line was logged; Started and Duration are the run's own. Kept as long as Loki's retention; runs still in progress are not listed. Output opens the run's captured output in Explore, for the dashboard's time range; jobs whose redirect is inside cronmgr's command have none.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -1138,6 +1138,43 @@
               {
                 "id": "unit",
                 "value": "dateTimeAsLocal"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "run_id"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Output"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "regex",
+                    "options": {
+                      "pattern": ".+",
+                      "result": {
+                        "index": 0,
+                        "text": "📄 view output"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View this run's output",
+                    "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22output%22%3A%7B%22datasource%22%3A%22${loki_datasource}%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22loki%22%2C%22uid%22%3A%22${loki_datasource}%22%7D%2C%22expr%22%3A%22%7Bsyslog_identifier%3D%5C%22cronmgr-output%5C%22%7D%20%7C%3D%20%5C%22run_id%3D${__value.raw}%20%5C%22%20%7C%20logfmt%20%7C%20line_format%20%5C%22%7B%7B.out%7D%7D%5C%22%22%2C%22queryType%22%3A%22range%22%2C%22editorMode%22%3A%22code%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D",
+                    "targetBlank": true
+                  }
+                ]
               }
             ]
           }
@@ -1230,8 +1267,9 @@
               "result": 3,
               "duration_seconds": 4,
               "exit_code": 5,
-              "started": 6,
-              "host": 7
+              "run_id": 6,
+              "started": 7,
+              "host": 8
             },
             "renameByName": {
               "Time": "Finished",
