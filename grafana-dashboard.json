@@ -26,7 +26,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Shows the last execution time for each job (relative to current time)",
+      "description": "Time since each job last ran (cronmgr updates it every second while a job runs). Yellow after 1 day, orange after 2, red after 7.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -42,19 +42,19 @@
               },
               {
                 "color": "yellow",
-                "value": 86400000
+                "value": 86400
               },
               {
                 "color": "orange",
-                "value": 172800000
+                "value": 172800
               },
               {
                 "color": "red",
-                "value": 604800000
+                "value": 604800
               }
             ]
           },
-          "unit": "dateTimeFromNow"
+          "unit": "dtdurations"
         },
         "overrides": []
       },
@@ -88,7 +88,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "crontab_last_run_timestamp_seconds{instance=~\"$instance\",name=~\"$job\"} * 1000",
+          "expr": "max by (instance, name) (time() - crontab_last_run_timestamp_seconds{instance=~\"$instance\",name=~\"$job\"})",
           "legendFormat": "{{instance}} - {{name}}",
           "refId": "A"
         }
@@ -937,13 +937,16 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(sum by (instance, name) (rate(crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=\"success\"}[5m])) or sum by (instance, name) (rate(crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=\"failed\"}[5m])) * 0) / sum by (instance, name) (rate(crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=~\"success|failed\"}[5m]))",
+          "expr": "((sum by (instance, name) (increase(crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=\"success\"}[$__range])) or sum by (instance, name) (increase(crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=\"failed\"}[$__range])) * 0) / sum by (instance, name) (increase(crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=~\"success|failed\"}[$__range]))) >= 0",
           "legendFormat": "{{instance}} - {{name}}",
-          "refId": "A"
+          "refId": "A",
+          "instant": true,
+          "range": false
         }
       ],
-      "title": "Success Rate (5m)",
-      "type": "gauge"
+      "title": "Success Rate",
+      "type": "gauge",
+      "description": "Share of completed runs (success or failed) that succeeded over the dashboard's time range."
     },
     {
       "datasource": {
@@ -978,8 +981,8 @@
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "never",
-            "spanNulls": false,
+            "showPoints": "always",
+            "spanNulls": true,
             "stacking": {
               "group": "A",
               "mode": "none"
@@ -1043,14 +1046,16 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(sum by (instance, name) (increase(crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=\"success\"}[24h])) or sum by (instance, name) (increase(crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=\"failed\"}[24h])) * 0) / sum by (instance, name) (increase(crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=~\"success|failed\"}[24h]))",
+          "expr": "((sum by (instance, name) (crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=\"success\"} - crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=\"success\"} offset $__interval) or sum by (instance, name) (crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=\"failed\"} - crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=\"failed\"} offset $__interval) * 0) / sum by (instance, name) (crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=~\"success|failed\"} - crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=~\"success|failed\"} offset $__interval)) >= 0",
           "legendFormat": "{{instance}} - {{name}}",
           "refId": "A"
         }
       ],
-      "title": "Success Rate Over Time (rolling 24h)",
+      "title": "Success Rate Over Time",
       "type": "timeseries",
-      "description": "Share of completed runs (success or failed) that succeeded in the trailing 24 hours. Gaps mean the job had no completed runs in that window."
+      "description": "Share of completed runs that succeeded in each interval of the time range (the interval grows with the range). Points appear only in intervals where the job completed a run; the line joins them.",
+      "interval": "1m",
+      "maxDataPoints": 100
     },
     {
       "datasource": {
