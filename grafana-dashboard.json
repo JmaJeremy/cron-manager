@@ -1057,7 +1057,7 @@
         "type": "loki",
         "uid": "${loki_datasource}"
       },
-      "description": "One row per finished run, newest first, from the line cronmgr writes to syslog when a run ends ({syslog_identifier=\"cronmgr\"} in Loki). Finished is when that line was logged; Started and Duration are the run's own. Kept as long as Loki's retention; runs still in progress are not listed. Output opens the run's captured output in Explore, for the dashboard's time range; jobs whose redirect is inside cronmgr's command have none.",
+      "description": "One row per finished run, newest first, from the line cronmgr writes to syslog when a run ends ({syslog_identifier=\"cronmgr\"} in Loki). Finished is when that line was logged; Started and Duration are the run's own. Both times are in the dashboard's timezone. Kept as long as Loki's retention; runs still in progress are not listed. Output opens the run's captured output in Explore, for the dashboard's time range; jobs whose redirect is inside cronmgr's command have none.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -1079,6 +1079,30 @@
           }
         },
         "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Finished"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "time:YYYY-MM-DD HH:mm:ss"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Started"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "time:YYYY-MM-DD HH:mm:ss"
+              }
+            ]
+          },
           {
             "matcher": {
               "id": "byName",
@@ -1126,18 +1150,6 @@
                 "value": {
                   "type": "color-text"
                 }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Finished"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "dateTimeAsLocal"
               }
             ]
           },
@@ -1240,6 +1252,10 @@
               {
                 "targetField": "exit_code",
                 "destinationType": "number"
+              },
+              {
+                "targetField": "started",
+                "destinationType": "time"
               }
             ],
             "fields": {}
