@@ -116,3 +116,4 @@ data
 dist
 # for github actions
 CI_RELEASE_NOTES.md
+.env
