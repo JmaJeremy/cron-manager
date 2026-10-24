@@ -937,13 +937,120 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (instance, name) (rate(crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=\"success\"}[5m])) / sum by (instance, name) (rate(crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=~\"success|failed\"}[5m]))",
+          "expr": "(sum by (instance, name) (rate(crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=\"success\"}[5m])) or sum by (instance, name) (rate(crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=\"failed\"}[5m])) * 0) / sum by (instance, name) (rate(crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=~\"success|failed\"}[5m]))",
           "legendFormat": "{{instance}} - {{name}}",
           "refId": "A"
         }
       ],
       "title": "Success Rate (5m)",
       "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.9
+              },
+              {
+                "color": "green",
+                "value": 0.99
+              }
+            ]
+          },
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "calcs": [
+            "min",
+            "mean",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "(sum by (instance, name) (increase(crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=\"success\"}[24h])) or sum by (instance, name) (increase(crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=\"failed\"}[24h])) * 0) / sum by (instance, name) (increase(crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=~\"success|failed\"}[24h]))",
+          "legendFormat": "{{instance}} - {{name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Success Rate Over Time (rolling 24h)",
+      "type": "timeseries",
+      "description": "Share of completed runs (success or failed) that succeeded in the trailing 24 hours. Gaps mean the job had no completed runs in that window."
     }
   ],
   "refresh": "10s",
