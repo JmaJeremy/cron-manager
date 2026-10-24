@@ -937,7 +937,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "rate(crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=\"success\"}[5m]) / rate(crontab_runs_total{instance=~\"$instance\",name=~\"$job\"}[5m])",
+          "expr": "sum by (instance, name) (rate(crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=\"success\"}[5m])) / sum by (instance, name) (rate(crontab_runs_total{instance=~\"$instance\",name=~\"$job\",status=~\"success|failed\"}[5m]))",
           "legendFormat": "{{instance}} - {{name}}",
           "refId": "A"
         }
