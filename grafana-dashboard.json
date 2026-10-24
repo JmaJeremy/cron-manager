@@ -425,7 +425,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "crontab_failed{instance=~\"$instance\",name=~\"$job\"}",
+          "expr": "max by (instance, name) (crontab_failed{instance=~\"$instance\",name=~\"$job\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -436,7 +436,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "crontab_exit_code{instance=~\"$instance\",name=~\"$job\"}",
+          "expr": "max by (instance, name) (crontab_exit_code{instance=~\"$instance\",name=~\"$job\"})",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -448,7 +448,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "crontab_last_run_timestamp_seconds{instance=~\"$instance\",name=~\"$job\"} * 1000",
+          "expr": "max by (instance, name) (crontab_last_run_timestamp_seconds{instance=~\"$instance\",name=~\"$job\"} * 1000)",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -460,7 +460,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "crontab_running{instance=~\"$instance\",name=~\"$job\"}",
+          "expr": "max by (instance, name) (crontab_running{instance=~\"$instance\",name=~\"$job\"})",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -472,7 +472,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "crontab_duration_seconds{instance=~\"$instance\",name=~\"$job\"}",
+          "expr": "max by (instance, name) (crontab_duration_seconds{instance=~\"$instance\",name=~\"$job\"})",
           "format": "table",
           "hide": false,
           "instant": true,
